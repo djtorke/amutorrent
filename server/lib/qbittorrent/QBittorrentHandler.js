@@ -389,12 +389,36 @@ class QBittorrentHandler {
   }
 
   /**
-   * A finished file has no aMule category id, only the id our category list
-   * derived from its folder, and our list may lack categories created through
-   * this API. Match its folder against aMule's own categories instead (#100).
+   * A finished file has no aMule category id. Prefer the category recorded
+   * when it was added, because folder matching is ambiguous when categories
+   * share a save path. Downloads without a stored mapping still use the path
+   * fallback needed for categories created through this API (#100).
    */
   async _resolveCategory(download) {
     if (!download.downloading && download.filePath) {
+      const ed2kHash = download.fileHash || download.EC_TAG_PARTFILE_HASH;
+      const storedCategoryName = ed2kHash
+        ? this.hashStore?.getMapping?.(ed2kHash)?.category
+        : null;
+
+      if (storedCategoryName) {
+        const [storedCategory, pathCategory] = await Promise.all([
+          this.getCategoryByName(storedCategoryName),
+          this._getCategoryByDir(download.filePath)
+        ]);
+        const category = storedCategory || pathCategory || await this.getCategoryById(0);
+
+        if (category) {
+          return {
+            ...category,
+            title: storedCategoryName,
+            path: pathCategory?.path || category.path || ''
+          };
+        }
+
+        return { title: storedCategoryName, path: '' };
+      }
+
       return (await this._getCategoryByDir(download.filePath)) || this.getCategoryById(0);
     }
     return this.getCategoryById(download.category || download.EC_TAG_PARTFILE_CAT || 0);
@@ -963,6 +987,14 @@ class QBittorrentHandler {
           const finalHash = ed2kHash || hash;
           const result = await manager.setCategoryOrLabel(finalHash, { categoryName: category });
           if (result?.success) {
+            const mapping = this.hashStore?.getMapping?.(finalHash);
+            if (mapping && typeof this.hashStore?.setMapping === 'function') {
+              this.hashStore.setMapping(finalHash, mapping.magnet_hash, {
+                fileName: mapping.file_name,
+                category,
+                addedAt: mapping.added_at
+              });
+            }
             logger.log(`[qBittorrent] setCategory: ${finalHash} → "${category}"`);
           } else {
             logger.warn(`[qBittorrent] setCategory failed for ${hash}: ${result?.error || 'unknown'}`);

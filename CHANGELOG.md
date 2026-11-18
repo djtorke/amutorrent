@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.1] - Preserve Categories for Completed Downloads
+
+### 🐛 Fixed
+
+- **Completed aMule downloads could be reported under the wrong category when categories shared a save path.** The qBittorrent-compatible API now prefers the category recorded when a download was added, and continues to use path matching when no mapping exists. Changing a download's category through the API also updates the stored association.
+
 ## [3.10.0] - Rucio, Encrypted aMule Connections, Safer Moves and Deletes
 
 ### ✨ Added

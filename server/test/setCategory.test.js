@@ -78,6 +78,31 @@ describe('setCategory handler (issue #74)', () => {
     assert.deepEqual(calls, [{ hash: 'a1b2c3', categoryName: 'books' }]);
   });
 
+  it('updates the stored category mapping after a successful category change', async () => {
+    const { handler } = makeHandler({ categories: [{ title: 'movies' }] });
+    const mapping = {
+      magnet_hash: 'btih1',
+      file_name: 'Movie.mkv',
+      category: 'books',
+      added_at: 123
+    };
+    const updates = [];
+    handler.hashStore.getMapping = (hash) => hash === 'a1b2c3' ? mapping : null;
+    handler.hashStore.setMapping = (hash, magnetHash, metadata) => {
+      updates.push({ hash, magnetHash, metadata });
+    };
+
+    const res = makeRes();
+    await handler.setCategory({ body: { hashes: 'a1b2c3', category: 'movies' } }, res);
+
+    assert.equal(res._state.status, 200);
+    assert.deepEqual(updates, [{
+      hash: 'a1b2c3',
+      magnetHash: 'btih1',
+      metadata: { fileName: 'Movie.mkv', category: 'movies', addedAt: 123 }
+    }]);
+  });
+
   it('applies category to multiple hashes split on |', async () => {
     const { handler, calls } = makeHandler({ categories: [{ title: 'books' }] });
     const res = makeRes();

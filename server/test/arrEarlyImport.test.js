@@ -77,7 +77,7 @@ describe('qBittorrent category for a finished file (#100)', () => {
     { id: 2, title: 'Movies', path: '/downloads/movies' }
   ];
 
-  async function torrentsInfo(unifiedCategories, fileDir, category) {
+  async function torrentsInfo(unifiedCategories, fileDir, category, storedCategoryName = null, categoryList = amuleCategories) {
     const shared = {
       ...normalizeAmuleSharedFile({
         fileName: 'Placeholder.Movie.mkv',
@@ -92,9 +92,12 @@ describe('qBittorrent category for a finished file (#100)', () => {
 
     const handler = new QBittorrentHandler();
     handler.getAmuleInstanceId = () => INSTANCE;
-    handler.hashStore = { getMagnetHash: () => null };
+    handler.hashStore = {
+      getMagnetHash: () => null,
+      getMapping: () => storedCategoryName ? { category: storedCategoryName } : null
+    };
     handler.categoryCacheInitialized = true;
-    handler.categoriesCache = amuleCategories;
+    handler.categoriesCache = categoryList;
 
     let body;
     await handler.getTorrentsInfo({ query: { category } }, { json: (b) => { body = b; } });
@@ -118,6 +121,25 @@ describe('qBittorrent category for a finished file (#100)', () => {
     ], '/downloads/movies', 'Movies');
     assert.equal(body.length, 1);
     assert.equal(body[0].content_path, '/downloads/movies/Placeholder.Movie.mkv');
+  });
+
+  it('uses the category stored at add time when categories share a save path', async () => {
+    const sharedPathCategories = [
+      { id: 0, title: 'Default', path: '/downloads/shared' },
+      { id: 1, title: 'Movies', path: '/downloads/shared' }
+    ];
+
+    const body = await torrentsInfo(
+      [{ id: 0, title: 'Default', path: '' }],
+      '/downloads/shared',
+      'Movies',
+      'Movies',
+      sharedPathCategories
+    );
+
+    assert.equal(body.length, 1, 'the Movies category filter should include the completed download');
+    assert.equal(body[0].category, 'Movies');
+    assert.equal(body[0].content_path, '/downloads/shared/Placeholder.Movie.mkv');
   });
 
   it('puts a file outside every category folder in aMule category 0', async () => {
